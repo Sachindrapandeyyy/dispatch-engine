@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Dispatch Engine & Telemetry Dashboard</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+
+    <style>
+        :root {
+            --bg-primary: #0b0f19;
+            --bg-secondary: #161e2e;
+            --bg-tertiary: #1f293d;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --accent-green: #10b981;
+            --accent-green-glow: rgba(16, 185, 129, 0.25);
+            --accent-blue: #3b82f6;
+            --accent-blue-glow: rgba(59, 130, 246, 0.25);
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+            --border-color: #2e3b52;
+            --shadow-primary: 0 4px 20px rgba(0, 0, 0, 0.4);
+            --font-main: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-main);
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* --- Layout Grid --- */
+        #app-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #sidebar {
+            width: 420px;
+            background-color: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+
+        #map-container {
+            flex-grow: 1;
+            height: 100%;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            background-color: #111;
+        }
+
+        /* --- Header & Branding --- */
+        .sidebar-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--border-color);
+            background-color: rgba(11, 15, 25, 0.4);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 6px;
+        }
+
+        .brand-logo {
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-green));
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: white;
+            box-shadow: 0 0 10px var(--accent-blue-glow);
+        }
+
+        .brand-title {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(to right, #ffffff, #d1d5db);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand-subtitle {
+            font-size: 12px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .badge-live {
+            background-color: var(--accent-green-glow);
+            color: var(--accent-green);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            animation: pulse-badge 1.8s infinite;
+        }
+
+        /* --- Panel Sections --- */
+        .sidebar-content {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel-card {
+            background-color: rgba(31, 41, 61, 0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: var(--shadow-primary);
+        }
+
+        .panel-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* --- Stats Grid --- */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .stat-box {
+            background-color: rgba(11, 15, 25, 0.4);
+            border: 1px solid rgba(46, 59, 82, 0.5);
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: white;
+            margin-top: 4px;
+            font-family: var(--font-mono);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        /* --- Action Controls --- */
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .btn {
+            background-color: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 6px rgba(59, 130, 246, 0.15);
+        }
+
+        .btn:hover {
+            background-color: #2563eb;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-success {
+            background-color: var(--accent-green);
+            box-shadow: 0 4px 6px rgba(16, 185, 129, 0.15);
+        }
+
+        .btn-success:hover {
+            background-color: #059669;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-secondary {
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            box-shadow: none;
+        }
+
+        .btn-secondary:hover {
+            background-color: #2b3952;
+            border-color: #4b5a75;
+            box-shadow: none;
+        }
+
+        /* --- Info Tables / Lists --- */
+        .list-container {
+            max-height: 160px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .list-item {
+            background-color: rgba(11, 15, 25, 0.3);
+            border: 1px solid rgba(46, 59, 82, 0.3);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .item-details {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .item-title {
+            font-weight: 600;
+            color: white;
+        }
+
+        .item-subtitle {
+            color: var(--text-secondary);
+            font-size: 10px;
+            font-family: var(--font-mono);
+        }
+
+        .status-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 20px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-available { background-color: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+        .status-busy { background-color: rgba(245, 158, 11, 0.15); color: var(--accent-orange); }
+        .status-requested { background-color: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
+        .status-accepted { background-color: #312e81; color: #818cf8; }
+        .status-completed { background-color: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+
+        /* --- Terminal Log Feed --- */
+        .terminal-log {
+            background-color: #070913;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            height: 180px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            color: #38bdf8;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.8);
+        }
+
+        .log-entry {
+            line-height: 1.4;
+            border-bottom: 1px solid rgba(46, 59, 82, 0.15);
+            padding-bottom: 4px;
+        }
+
+        .log-time {
+            color: #57534e;
+            margin-right: 6px;
+        }
+
+        .log-tag {
+            color: var(--accent-green);
+            font-weight: bold;
+            margin-right: 4px;
+        }
+
+        .log-tag-system { color: var(--accent-blue); }
+        .log-tag-offer { color: var(--accent-orange); }
+        .log-tag-err { color: var(--accent-red); }
+
+        /* --- Map Overlay Prompts --- */
+        #map-overlay-prompt {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(22, 30, 46, 0.95);
+            border: 1px solid var(--accent-blue);
+            border-radius: 8px;
+            padding: 12px 20px;
+            z-index: 1000;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        #map-overlay-prompt.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .pulse-icon {
+            color: var(--accent-blue);
+            animation: pulse-dot 1.5s infinite;
+        }
+
+        /* --- Animations --- */
+        @keyframes pulse-badge {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        @keyframes pulse-dot {
+            0% { transform: scale(0.95); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.5; }
+        }
+
+        /* --- Leaflet Marker Custom Styling --- */
+        .leaflet-div-icon {
+            background: transparent !important;
+            border: none !important;
+        }
+
+        .driver-marker-pin {
+            width: 32px;
+            height: 32px;
+            background-color: var(--accent-green);
+            border: 2px solid white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 13px;
+            box-shadow: 0 0 12px rgba(16, 185, 129, 0.8);
+            transition: transform 0.2s ease, background-color 0.2s ease;
+        }
+
+        .driver-marker-pin.busy {
+            background-color: var(--accent-orange);
+            box-shadow: 0 0 12px rgba(245, 158, 11, 0.8);
+        }
+
+        .rider-marker-pin {
+            width: 24px;
+            height: 24px;
+            background-color: var(--accent-blue);
+            border: 2px solid white;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 8px rgba(59, 130, 246, 0.8);
+        }
+
+        .rider-marker-pin i {
+            transform: rotate(45deg);
+            color: white;
+            font-size: 10px;
+        }
+
+        .destination-marker-pin {
+            width: 24px;
+            height: 24px;
+            background-color: var(--accent-red);
+            border: 2px solid white;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
+        }
+
+        .destination-marker-pin i {
+            transform: rotate(45deg);
+            color: white;
+            font-size: 10px;
+        }
+
+        /* --- Footer Info --- */
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border-color);
+            font-size: 11px;
+            color: var(--text-secondary);
+            background-color: rgba(11, 15, 25, 0.2);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <aside id="sidebar">
+            <header class="sidebar-header">
+                <div class="brand">
+                    <div class="brand-logo">
+                        <i class="fa-solid fa-route"></i>
+                    </div>
+                    <h1 class="brand-title">Antigravity GPS</h1>
+                </div>
+                <div class="brand-subtitle">
+                    <span>Dispatch Telemetry Gateway</span>
+                    <span class="badge-live"><i class="fa-solid fa-circle" style="font-size:6px; vertical-align:middle; margin-right:4px;"></i>Live</span>
+                </div>
+            </header>
+
+            <div class="sidebar-content">
+                <!-- System Diagnostics Stats -->
+                <section class="panel-card">
+                    <h2 class="panel-title">System Observability</h2>
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <span class="stat-label">Active Drivers</span>
+                            <span id="stat-active-drivers" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Total Rides</span>
+                            <span id="stat-total-rides" class="stat-value">0</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Operations Center Controls -->
+                <section class="panel-card">
+                    <h2 class="panel-title">Operations Center</h2>
+                    <div class="control-group">
+                        <button id="btn-spawn-drivers" class="btn btn-secondary">
+                            <i class="fa-solid fa-users-line"></i> Seed Web Drivers
+                        </button>
+                        <button id="btn-request-ride" class="btn btn-success">
+                            <i class="fa-solid fa-bolt"></i> Request Custom Ride
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Active Drivers List -->
+                <section class="panel-card">
+                    <h2 class="panel-title">Online Drivers <span id="online-count" style="font-size:10px; color:var(--text-secondary); text-transform:none;">(0)</span></h2>
+                    <div id="drivers-list" class="list-container">
+                        <div style="font-size:11px; color:var(--text-secondary); text-align:center; padding:10px;">
+                            No drivers connected. Spawn web drivers to begin.
+                        </div>
+                    </div>
+                </section>
+
+                <!-- System Terminal Logs -->
+                <section class="panel-card" style="flex-grow: 1; display: flex; flex-direction: column;">
+                    <h2 class="panel-title">Gateway Event Logs</h2>
+                    <div id="terminal" class="terminal-log">
+                        <div class="log-entry">
+                            <span class="log-time">[14:50:00]</span>
+                            <span class="log-tag log-tag-system">SYSTEM</span>
+                            <span>Awaiting connection to FastAPI endpoint...</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <footer class="sidebar-footer">
+                <span>Designed for Backend Engineer & Architect Portfolio</span>
+            </footer>
+        </aside>
+
+        <!-- Interactive Geolocation Map -->
+        <main id="map-container">
+            <div id="map-overlay-prompt">
+                <i class="fa-solid fa-location-crosshairs pulse-icon"></i>
+                <span id="prompt-text">Click on the map to set the PICKUP location.</span>
+            </div>
+            <div id="map"></div>
+        </main>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <script>
+        // Constants & Config
+        const BANGALORE_CENTER = [12.9716, 77.5946];
+        const MAP_TILES = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        const MAP_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+
+        // Global Variables
+        let map;
+        let driverMarkers = {};
+        let activeRideMarker = null;
+        let activeDestinationMarker = null;
+        let activeRouteLine = null;
+        
+        let selectState = "IDLE"; // IDLE, SELECT_PICKUP, SELECT_DROPOFF
+        let pickupCoords = null;
+        let dropoffCoords = null;
+
+        // Simulated Web Drivers connected via frontend WebSockets
+        let webDrivers = [];
+        let websocketRider = null;
+
+        // Init App
+        window.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            setupEventListeners();
+            startPolling();
+            logToTerminal("System initialized. SQLite fallback active.", "SYSTEM");
+        });
+
+        // Initialize Map
+        function initMap() {
+            map = L.map('map', {
+                center: BANGALORE_CENTER,
+                zoom: 14,
+                zoomControl: false
+            });
+
+            L.tileLayer(MAP_TILES, {
+                attribution: MAP_ATTRIBUTION,
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(map);
+
+            L.control.zoom({
+                position: 'topright'
+            }).addTo(map);
+
+            // Click listener for custom ride creation
+            map.on('click', handleMapClick);
+        }
+
+        // Setup Event Listeners
+        function setupEventListeners() {
+            document.getElementById('btn-spawn-drivers').addEventListener('click', spawnWebDrivers);
+            document.getElementById('btn-request-ride').addEventListener('click', startRideLocationSelection);
+        }
+
+        // Polling loop for active driver positions & lists
+        function startPolling() {
+            const poll = async () => {
+                try {
+                    // 1. Fetch active driver positions
+                    const resDrivers = await fetch('/drivers/active');
+                    const drivers = await resDrivers.json();
+                    updateDriversOnMap(drivers);
+                    updateDriversList(drivers);
+
+                    // 2. Fetch rides count
+                    const resRides = await fetch('/rides');
+                    const rides = await resRides.json();
+                    document.getElementById('stat-total-rides').innerText = rides.length;
+                } catch (err) {
+                    console.error("Polling error:", err);
+                }
+            };
+            
+            poll();
+            setInterval(poll, 1500); // 1.5s interval
+        }
+
+        // Update Driver Markers
+        function updateDriversOnMap(drivers) {
+            document.getElementById('stat-active-drivers').innerText = drivers.length;
+
+            // Track IDs present in this poll
+            let currentIds = new Set();
+
+            drivers.forEach(driver => {
+                currentIds.add(driver.id);
+                const pos = [driver.lat, driver.lon];
+
+                if (driverMarkers[driver.id]) {
+                    // Move existing marker smoothly
+                    driverMarkers[driver.id].setLatLng(pos);
+                    // Update status color
+                    const pin = driverMarkers[driver.id].getElement()?.querySelector('.driver-marker-pin');
+                    if (pin) {
+                        if (driver.status === 'BUSY') {
+                            pin.classList.add('busy');
+                        } else {
+                            pin.classList.remove('busy');
+                        }
+                    }
+                } else {
+                    // Create new marker
+                    const customIcon = L.divIcon({
+                        className: 'custom-driver-icon',
+                        html: `<div class="driver-marker-pin ${driver.status === 'BUSY' ? 'busy' : ''}"><i class="fa-solid fa-car-side"></i></div>`,
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 16]
+                    });
+
+                    const marker = L.marker(pos, { icon: customIcon }).addTo(map);
+                    marker.bindPopup(`<b>${driver.name}</b><br>Status: ${driver.status}<br>Type: ${driver.vehicle_type}`);
+                    driverMarkers[driver.id] = marker;
+                }
+            });
+
+            // Remove drivers no longer active
+            Object.keys(driverMarkers).forEach(id => {
+                if (!currentIds.has(id)) {
+                    map.removeLayer(driverMarkers[id]);
+                    delete driverMarkers[id];
+                }
+            });
+        }
+
+        // Update Drivers List Panel
+        function updateDriversList(drivers) {
+            const list = document.getElementById('drivers-list');
+            document.getElementById('online-count').innerText = `(${drivers.length})`;
+            
+            if (drivers.length === 0) {
+                list.innerHTML = `<div style="font-size:11px; color:var(--text-secondary); text-align:center; padding:10px;">No drivers connected. Spawn web drivers to begin.</div>`;
+                return;
+            }
+
+            list.innerHTML = drivers.map(d => `
+                <div class="list-item">
+                    <div class="item-details">
+                        <span class="item-title">${d.name}</span>
+                        <span class="item-subtitle">${d.id} | ${d.vehicle_type}</span>
+                    </div>
+                    <span class="status-badge ${d.status === 'AVAILABLE' ? 'status-available' : 'status-busy'}">${d.status}</span>
+                </div>
+            `).join('');
+        }
+
+        // Log messages to log terminal panel
+        function logToTerminal(message, tag = "INFO") {
+            const terminal = document.getElementById('terminal');
+            const now = new Date();
+            const timeStr = now.toTimeString().split(' ')[0];
+            
+            let tagClass = "log-tag-system";
+            if (tag === "OFFER") tagClass = "log-tag-offer";
+            if (tag === "ERROR" || tag === "REJECT") tagClass = "log-tag-err";
+
+            const log = document.createElement('div');
+            log.className = 'log-entry';
+            log.innerHTML = `
+                <span class="log-time">[${timeStr}]</span>
+                <span class="log-tag ${tagClass}">${tag}</span>
+                <span>${message}</span>
+            `;
+            
+            terminal.appendChild(log);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        // --- Custom Interactive Simulation Setup ---
+
+        // Web Client Driver simulation Class running directly inside browser context!
+        class BrowserSimulatedDriver {
+            constructor(id, name, lat, lon) {
+                this.id = id;
+                this.name = name;
+                this.lat = lat;
+                this.lon = lon;
+                this.status = "OFFLINE";
+                this.ws = null;
+                this.currentRide = null;
+                this.movementInterval = null;
+            }
+
+            async connect() {
+                // Register driver via REST call
+                try {
+                    await fetch('/drivers', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: this.id, name: this.name, vehicle_type: 'standard' })
+                    });
+                } catch (e) { /* already exists */ }
+
+                // Connect WebSocket
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const uri = `${protocol}//${window.location.host}/ws/driver/${this.id}`;
+                this.ws = new WebSocket(uri);
+
+                this.ws.onopen = () => {
+                    this.status = "AVAILABLE";
+                    logToTerminal(`Driver ${this.name} connected to WebSocket.`, "SYSTEM");
+                    // Start telemetry telemetry loop
+                    this.telemetryTimer = setInterval(() => this.sendTelemetry(), 3000);
+                };
+
+                this.ws.onmessage = (event) => {
+                    const msg = JSON.parse(event.data);
+                    this.handleMessage(msg);
+                };
+
+                this.ws.onclose = () => {
+                    clearInterval(this.telemetryTimer);
+                    clearInterval(this.movementInterval);
+                    logToTerminal(`Driver ${this.name} disconnected.`, "ERROR");
+                };
+            }
+
+            sendTelemetry() {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    this.ws.send(JSON.stringify({ lat: this.lat, lon: this.lon }));
+                }
+            }
+
+            async handleMessage(msg) {
+                if (msg.type === "ride_offer") {
+                    const ride = msg.ride;
+                    logToTerminal(`[Offer] Offer for Ride #${ride.id} sent to ${this.name}.`, "OFFER");
+                    
+                    // Simulate short human decision delay
+                    setTimeout(async () => {
+                        // 15% probability of rejection to show escalation
+                        const accept = Math.random() > 0.15;
+                        if (accept) {
+                            logToTerminal(`[Accept] ${this.name} accepted Ride #${ride.id}.`, "SYSTEM");
+                            const res = await fetch(`/rides/${ride.id}/accept`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ driver_id: this.id })
+                            });
+                            if (res.ok) {
+                                this.currentRide = ride;
+                                this.status = "BUSY";
+                                this.startDrivingSimulation();
+                            }
+                        } else {
+                            logToTerminal(`[Reject] ${this.name} rejected Ride #${ride.id}.`, "REJECT");
+                            await fetch(`/rides/${ride.id}/reject`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ driver_id: this.id })
+                            });
+                        }
+                    }, 2000);
+                } else if (msg.type === "offer_expired") {
+                    logToTerminal(`Offer for Ride #${msg.ride_id} expired.`, "REJECT");
+                    this.currentRide = null;
+                    this.status = "AVAILABLE";
+                }
+            }
+
+            // Animate moving the driver toward destination
+            startDrivingSimulation() {
+                const ride = this.currentRide;
+                let step = 0;
+                
+                // First target pickup, then target dropoff
+                let targetLat = ride.pickup_lat;
+                let targetLon = ride.pickup_lon;
+                let state = "TO_PICKUP";
+
+                this.movementInterval = setInterval(async () => {
+                    let dLat = targetLat - this.lat;
+                    let dLon = targetLon - this.lon;
+                    let distance = Math.sqrt(dLat*dLat + dLon*dLon);
+                    
+                    const speed = 0.0007; // speed step
+                    
+                    if (distance <= speed) {
+                        // Arrived
+                        this.lat = targetLat;
+                        this.lon = targetLon;
+                        
+                        if (state === "TO_PICKUP") {
+                            logToTerminal(`Driver ${this.name} arrived at PICKUP.`, "SYSTEM");
+                            await fetch(`/rides/${ride.id}/status`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ status: 'ARRIVED' })
+                            });
+                            
+                            // Boarding delay
+                            setTimeout(async () => {
+                                logToTerminal(`Trip #${ride.id} IN_PROGRESS. Heading to destination.`, "SYSTEM");
+                                await fetch(`/rides/${ride.id}/status`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ status: 'IN_PROGRESS' })
+                                });
+                                targetLat = ride.dropoff_lat;
+                                targetLon = ride.dropoff_lon;
+                                state = "TO_DROPOFF";
+                            }, 2000);
+                        } else {
+                            // Arrived at dropoff, complete
+                            logToTerminal(`Trip #${ride.id} COMPLETED successfully!`, "SYSTEM");
+                            await fetch(`/rides/${ride.id}/status`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ status: 'COMPLETED' })
+                            });
+                            
+                            clearInterval(this.movementInterval);
+                            this.currentRide = null;
+                            this.status = "AVAILABLE";
+                        }
+                    } else {
+                        // Step forward
+                        this.lat += (dLat / distance) * speed;
+                        this.lon += (dLon / distance) * speed;
+                    }
+                }, 1000); // Tick every 1 second
+            }
+
+            disconnectDriver() {
+                if (this.ws) {
+                    this.ws.close();
+                }
+            }
+        }
+
+        // Spawn simulated web drivers
+        function spawnWebDrivers() {
+            if (webDrivers.length > 0) {
+                logToTerminal("Web Drivers already spawned.", "SYSTEM");
+                return;
+            }
+
+            // Create 3 driver instances around center Bangalore
+            const configs = [
+                { id: "web_driver_1", name: "Bob (Web Closest)", lat: 12.9718, lon: 77.5912 },
+                { id: "web_driver_2", name: "Alice (Web Medium)", lat: 12.9735, lon: 77.5928 },
+                { id: "web_driver_3", name: "Charlie (Web Far)", lat: 12.9785, lon: 77.6015 }
+            ];
+
+            configs.forEach(conf => {
+                const drv = new BrowserSimulatedDriver(conf.id, conf.name, conf.lat, conf.lon);
+                drv.connect();
+                webDrivers.push(drv);
+            });
+
+            document.getElementById('btn-spawn-drivers').disabled = true;
+            document.getElementById('btn-spawn-drivers').innerText = "3 Web Drivers Online";
+        }
+
+        // --- Custom Ride Selection Workflows ---
+
+        function startRideLocationSelection() {
+            // Verify drivers are online
+            if (document.getElementById('stat-active-drivers').innerText === "0") {
+                alert("Please spawn Web Drivers first to test the dispatch matching!");
+                return;
+            }
+
+            selectState = "SELECT_PICKUP";
+            pickupCoords = null;
+            dropoffCoords = null;
+
+            // Clear old layers
+            if (activeRideMarker) map.removeLayer(activeRideMarker);
+            if (activeDestinationMarker) map.removeLayer(activeDestinationMarker);
+            if (activeRouteLine) map.removeLayer(activeRouteLine);
+
+            const prompt = document.getElementById('map-overlay-prompt');
+            document.getElementById('prompt-text').innerText = "Click on the map to set the PICKUP location.";
+            prompt.classList.add('active');
+        }
+
+        function handleMapClick(e) {
+            const coords = [e.latlng.lat, e.latlng.lng];
+
+            if (selectState === "SELECT_PICKUP") {
+                pickupCoords = coords;
+                
+                // Add marker
+                const customIcon = L.divIcon({
+                    className: 'custom-rider-icon',
+                    html: `<div class="rider-marker-pin"><i class="fa-solid fa-person-walking"></i></div>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 24]
+                });
+                activeRideMarker = L.marker(coords, { icon: customIcon }).addTo(map);
+                
+                selectState = "SELECT_DROPOFF";
+                document.getElementById('prompt-text').innerText = "Now click to set the DESTINATION (dropoff) location.";
+            } 
+            else if (selectState === "SELECT_DROPOFF") {
+                dropoffCoords = coords;
+
+                // Add marker
+                const customIcon = L.divIcon({
+                    className: 'custom-destination-icon',
+                    html: `<div class="destination-marker-pin"><i class="fa-solid fa-flag-checkered"></i></div>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 24]
+                });
+                activeDestinationMarker = L.marker(coords, { icon: customIcon }).addTo(map);
+
+                // Add dotted line path
+                activeRouteLine = L.polyline([pickupCoords, dropoffCoords], {
+                    color: '#3b82f6',
+                    weight: 3,
+                    dashArray: '5, 10',
+                    opacity: 0.8
+                }).addTo(map);
+
+                // Hide prompt
+                document.getElementById('map-overlay-prompt').classList.remove('active');
+                selectState = "IDLE";
+
+                // Submit ride request
+                submitCustomRideRequest();
+            }
+        }
+
+        async function submitCustomRideRequest() {
+            const riderId = "rider_web_portal";
+            
+            // Create user
+            try {
+                await fetch('/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: riderId, name: "Web Portal Passenger", email: "portal@passenger.com" })
+                });
+            } catch (e) { /* already exists */ }
+
+            // Connect Rider WebSocket to listen to dispatch events
+            if (websocketRider) {
+                websocketRider.close();
+            }
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            websocketRider = new WebSocket(`${protocol}//${window.location.host}/ws/rider/${riderId}`);
+            
+            websocketRider.onopen = async () => {
+                logToTerminal(`Rider connected to WebSocket. Submitting Ride Request.`, "SYSTEM");
+                
+                // Send request
+                const res = await fetch('/rides/request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        rider_id: riderId,
+                        pickup_lat: pickupCoords[0],
+                        pickup_lon: pickupCoords[1],
+                        dropoff_lat: dropoffCoords[0],
+                        dropoff_lon: dropoffCoords[1]
+                    })
+                });
+
+                if (res.ok) {
+                    const ride = await res.json();
+                    logToTerminal(`Ride requested. ID: ${ride.id}, Est. Fare: $${ride.fare}`, "SYSTEM");
+                } else {
+                    logToTerminal("Failed to submit ride request.", "ERROR");
+                }
+            };
+
+            websocketRider.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                
+                if (msg.type === "dispatch_update") {
+                    logToTerminal(`[App] Status: ${msg.status}`, "SYSTEM");
+                } 
+                else if (msg.type === "ride_accepted") {
+                    logToTerminal(`[Match] Driver ${msg.ride.driver_id} accepted the ride offer!`, "SYSTEM");
+                    activeRouteLine.setStyle({ color: '#10b981', dashArray: null }); // Make route green and solid
+                } 
+                else if (msg.type === "ride_status_update") {
+                    logToTerminal(`[App] Ride Status: ${msg.ride.status}`, "SYSTEM");
+                    if (msg.ride.status === "COMPLETED") {
+                        logToTerminal("Passenger arrived safely. Trip closed.", "SYSTEM");
+                        
+                        // Clear markers after delay
+                        setTimeout(() => {
+                            if (activeRideMarker) map.removeLayer(activeRideMarker);
+                            if (activeDestinationMarker) map.removeLayer(activeDestinationMarker);
+                            if (activeRouteLine) map.removeLayer(activeRouteLine);
+                        }, 5000);
+                    }
+                } 
+                else if (msg.type === "driver_location_update") {
+                    // Update connection route line from driver to pickup coordinates
+                    console.log("Driver coordinates:", msg.lat, msg.lon);
+                }
+                else if (msg.type === "ride_failed") {
+                    logToTerminal(`[Failed] Matching failed: ${msg.reason}`, "ERROR");
+                    activeRouteLine.setStyle({ color: '#ef4444' });
+                }
+            };
+        }
+    </script>
+</body>
+</html>

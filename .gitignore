@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+dispatch.db
+.env
+*.pyc
+.idea/
+.vscode/
